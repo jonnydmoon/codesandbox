@@ -96,23 +96,35 @@ lib.waitForAndSendText = async function(node, selector, value, timeout = 4000){
 	return input;
 }
 
+lib.loadFile = function tempLoadFile(file, onLoad) {
+	// This is only used for testing. go to php-index for source of truth.
+	const css = file.endsWith('css');
+	const node = document.createElement(css ? 'link' : 'script');
+	if (css) {
+		node.rel = 'stylesheet';
+		node.href = file;
+	} else {
+		node.type = 'text/javascript';
+		node.src = file;
+		node.async = false; // loads in parallel & keeps the execution order of the scripts.
+		if (onLoad) {
+			node.onload = onLoad;
+		}
+	}
+	document.head.appendChild(node);
+}
+
 
 lib.run = async function(){
 	const wardList = lib.getWardList();
 	lib.__wardList = wardList;
-	const recordsToProcess = wardList.filter(member => !member.done);
-	console.log(`There are ${recordsToProcess.length} records to process.`);
-	if(recordsToProcess.length === 0){
-		console.log('FINISHED! There are no more records to process');
-		return;
-	}
-	await lib.updateRecord(recordsToProcess[0]);
+	lib.renderUI();
 }
 
 /*
-Dads,Moms,Kids
-Jonny,Shelly,Caroline
-Jesse,Tara,Bella
+firstName,lastName,phone,address
+Jonny,Anders,7773993932,123 N 456 W Orem UT
+Shelly,Timmel,7773993932,222 N 333 W Orem UT
 */
 lib.getWardList = function(){
 	let wardList = localStorage.__wardList && JSON.parse(localStorage.__wardList);
@@ -131,18 +143,65 @@ lib.saveWardList = function(){
 	localStorage.__wardList = JSON.stringify(lib.__wardList);
 }
 
-lib.updateRecord = async function(member){
-	await lib.waitForAndSendText(document, '#lookup-name', `${member.lastName}, ${member.firstName}`);
-	await lib.waitForAndSendText(document, '#birth-date', member.birthDateFormatted);
+lib.updateRecord = async function(){
+	let member = lib.getCurrentRecord();
+	//await lib.waitForAndSendText(document, '#lookup-name', `${member.lastName}, ${member.firstName}`);
+	//await lib.waitForAndSendText(document, '#birth-date', member.birthDateFormatted);
 
 	member.done = true;
 	lib.saveWardList();
 	console.log(`Finished importing: ${member.firstName} ${member.lastName}`);
+	lib.renderUI();
 }
 
+lib.getCurrentRecord = function(){
+	return lib.__wardList.find(item => !item.done);
+}
+
+lib.renderUI = function() {
+
+	let items = lib.__wardList;
+	const finishedItems = items.filter(item => item.done);
+	const pendingRecord = lib.getCurrentRecord() || {};
+	const finished = finishedItems.length === items.length;
+
+
+
+	document.body.innerHTML = `
+		<div>
+			Records Finished: ${finishedItems.length} of ${items.length}<br />
+			<br />
+			${finished ? '<br />All Done!<br /><br />' : `
+				Current Record To Import: ${pendingRecord.firstName} ${pendingRecord.lastName}<br />
+				<a href="" onclick="lib.updateRecord(); return false;">Import Current Record</a> <br />
+				<a href="" onclick="lib.doNext(); return false;">Mark Current Record as Done</a> <br />
+			`}
+			<br />
+			<br />
+			<a href="" onclick="localStorage.__wardList = ''; lib.run(); return false;">Clear CSV File</a> <br />
+		</div>
+	`;
+}
+
+lib.doNext = function() {
+	console.log('Doing Next')
+}
+
+lib.run();
+
 /*
-  var myWindow = window.open("", "myWindow", "width=200,height=100");
-  myWindow.document.write("<p>This is 'myWindow'</p>");
+
+var myWindow = window.open("", "myWindow", "width=500,height=500");
+node = document.createElement('script');
+node.type = 'text/javascript';
+node.src = 'https://csb-n0bjo.netlify.app/lib.js?cacheBust=' + Date.now;
+myWindow.document.head.appendChild(node);
+
+
+
+
+
+
 
   // You can have the window control the frame
 opener.document.body
